@@ -1,11 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Social Feed</title>
+  <meta charset="UTF-8">
+  <title>Feed</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -43,7 +42,6 @@
     textarea {
       width: 100%;
       height: 70px;
-      resizing: none;
       padding: 10px;
       font-size: 14px;
       border-radius: 8px;
@@ -81,6 +79,16 @@
       padding: 4px 10px;
       font-size: 13px;
       cursor: pointer;
+    }
+
+    .active-like {
+      background: #6e8efb;
+      color: white;
+    }
+
+    .active-dislike {
+      background: #e74c3c;
+      color: white;
     }
 
     .comments {
@@ -127,13 +135,11 @@
 
 <div class="container">
 
-  <!-- New Post -->
   <div class="post-box">
     <textarea id="newPost" placeholder="What's on your mind?"></textarea>
     <button onclick="createPost()">Post</button>
   </div>
 
-  <!-- Feed -->
   <div id="feed"></div>
 
 </div>
@@ -143,7 +149,6 @@
     apiKey: "AIzaSyDfo7yUsxw_0DG6JS09A4jOxVZhdSMYQyQ",
     authDomain: "lads-7a3a2.firebaseapp.com",
     projectId: "lads-7a3a2",
-    storageBucket: "lads-7a3a2.firebasestorage.app",
     messagingSenderId: "294006575046",
     appId: "1:294006575046:web:e42226b89015a9c515ecc7"
   };
@@ -152,53 +157,44 @@
   const auth = firebase.auth();
   const db = firebase.firestore();
 
-  // 🔒 Protect page
+  let currentUser = null;
+
   auth.onAuthStateChanged(user => {
     if (!user) window.location.href = "login.html";
-    else loadFeed();
+    currentUser = user;
+    loadFeed();
   });
 
-  // ✅ Create a post
   function createPost() {
-    const text = document.getElementById("newPost").value.trim();
+    const text = newPost.value.trim();
     if (!text) return;
 
     db.collection("posts").add({
       text,
-      likes: 0,
-      dislikes: 0,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
 
-    document.getElementById("newPost").value = "";
+    newPost.value = "";
   }
 
-  // ✅ Load feed
   function loadFeed() {
-    db.collection("posts")
-      .orderBy("createdAt", "desc")
+    db.collection("posts").orderBy("createdAt", "desc")
       .onSnapshot(snapshot => {
-        document.getElementById("feed").innerHTML = "";
-
+        feed.innerHTML = "";
         snapshot.forEach(doc => {
           const post = doc.data();
           const id = doc.id;
 
-          document.getElementById("feed").innerHTML += `
+          feed.innerHTML += `
             <div class="post">
               <div>${post.text}</div>
 
               <div class="reactions">
-                <div class="reaction-btn" onclick="react('${id}', 'like')">
-                  👍 ${post.likes}
-                </div>
-                <div class="reaction-btn" onclick="react('${id}', 'dislike')">
-                  👎 ${post.dislikes}
-                </div>
+                <div id="like-${id}" class="reaction-btn" onclick="react('${id}', 'like')">👍 0</div>
+                <div id="dislike-${id}" class="reaction-btn" onclick="react('${id}', 'dislike')">👎 0</div>
               </div>
 
               <div class="comments">
-                <div><strong>Comments</strong></div>
                 <div id="comments-${id}"></div>
 
                 <div class="comment-box">
@@ -209,36 +205,55 @@
             </div>
           `;
 
+          loadReactions(id);
           loadComments(id);
         });
       });
   }
 
-  // ✅ Like / Dislike
-  function react(id, type) {
-    const ref = db.collection("posts").doc(id);
+  function react(postId, type) {
+    const ref = db.collection("posts").doc(postId)
+      .collection("reactions").doc(currentUser.uid);
 
-    db.runTransaction(transaction => {
-      return transaction.get(ref).then(doc => {
-        if (!doc.exists) return;
-
-        const data = doc.data();
-        if (type === "like") data.likes++;
-        if (type === "dislike") data.dislikes++;
-
-        transaction.update(ref, data);
-      });
-    });
+    ref.set({ type });
   }
 
-  // ✅ Add comment
+  function loadReactions(postId) {
+    db.collection("posts").doc(postId)
+      .collection("reactions")
+      .onSnapshot(snapshot => {
+
+        let likes = 0;
+        let dislikes = 0;
+        let userReaction = null;
+
+        snapshot.forEach(doc => {
+          const r = doc.data().type;
+          if (r === "like") likes++;
+          if (r === "dislike") dislikes++;
+          if (doc.id === currentUser.uid) userReaction = r;
+        });
+
+        const likeBtn = document.getElementById(`like-${postId}`);
+        const dislikeBtn = document.getElementById(`dislike-${postId}`);
+
+        likeBtn.innerText = `👍 ${likes}`;
+        dislikeBtn.innerText = `👎 ${dislikes}`;
+
+        likeBtn.classList.remove("active-like");
+        dislikeBtn.classList.remove("active-dislike");
+
+        if (userReaction === "like") likeBtn.classList.add("active-like");
+        if (userReaction === "dislike") dislikeBtn.classList.add("active-dislike");
+      });
+  }
+
   function addComment(postId) {
     const input = document.getElementById(`comment-${postId}`);
     const text = input.value.trim();
     if (!text) return;
 
-    db.collection("posts")
-      .doc(postId)
+    db.collection("posts").doc(postId)
       .collection("comments")
       .add({
         text,
@@ -248,28 +263,21 @@
     input.value = "";
   }
 
-  // ✅ Load comments
   function loadComments(postId) {
-    db.collection("posts")
-      .doc(postId)
+    db.collection("posts").doc(postId)
       .collection("comments")
       .orderBy("createdAt")
       .onSnapshot(snapshot => {
         const box = document.getElementById(`comments-${postId}`);
-        if (!box) return;
-
         box.innerHTML = "";
-
         snapshot.forEach(doc => {
-          const c = doc.data();
-          box.innerHTML += `<div class="comment">${c.text}</div>`;
+          box.innerHTML += `<div class="comment">${doc.data().text}</div>`;
         });
       });
   }
 
-  // ✅ Logout
   function logout() {
-    auth.signOut().then(() => window.location.href = "login.html");
+    auth.signOut().then(() => location.href = "login.html");
   }
 </script>
 
