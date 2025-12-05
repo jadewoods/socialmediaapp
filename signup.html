@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sign Up</title>
+
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+
+  <style>
+    body {
+      font-family: Arial;
+      background: linear-gradient(135deg, #6e8efb, #a777e3);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .box {
+      background: white;
+      padding: 30px;
+      width: 320px;
+      border-radius: 12px;
+      text-align: center;
+    }
+
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="box">
+  <h2>Create Account</h2>
+
+  <input type="email" id="email" placeholder="Email">
+  <input type="password" id="password" placeholder="Password">
+
+  <button onclick="signup()">Sign Up</button>
+
+  <p id="msg"></p>
+  <p><a href="login.html">Already have an account?</a></p>
+</div>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDfo7yUsxw_0DG6JS09A4jOxVZhdSMYQyQ",
+    authDomain: "lads-7a3a2.firebaseapp.com",
+    projectId: "lads-7a3a2",
+    storageBucket: "lads-7a3a2.firebasestorage.app",
+    messagingSenderId: "294006575046",
+    appId: "1:294006575046:web:e42226b89015a9c515ecc7"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+
+  function signup() {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+
+    auth.createUserWithEmailAndPassword(email, password)
+      .then(() => {
+        window.location.href = "login.html";
+      })
+      .catch(err => {
+        document.getElementById("msg").innerText = err.message;
+      });
+  }
+</script>
+
+</body>
+</html>

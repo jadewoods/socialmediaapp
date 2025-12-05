@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Feed</title>
+
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+</head>
+
+<body>
+
+<h1>Welcome to Your Social Media Feed</h1>
+<p>You are now logged in.</p>
+
+<button onclick="logout()">Log Out</button>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDfo7yUsxw_0DG6JS09A4jOxVZhdSMYQyQ",
+    authDomain: "lads-7a3a2.firebaseapp.com",
+    projectId: "lads-7a3a2",
+    storageBucket: "lads-7a3a2.firebasestorage.app",
+    messagingSenderId: "294006575046",
+    appId: "1:294006575046:web:e42226b89015a9c515ecc7"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+
+  auth.onAuthStateChanged(user => {
+    if (!user) {
+      window.location.href = "login.html";
+    }
+  });
+
+  function logout() {
+    auth.signOut().then(() => {
+      window.location.href = "login.html";
+    });
+  }
+</script>
+
+</body>
+</html>
