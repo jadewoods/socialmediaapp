@@ -1,19 +1,142 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Feed</title>
+  <meta charset="UTF-8" />
+  <title>Social Feed</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f1f2f6;
+      padding-bottom: 80px;
+    }
+
+    header {
+      background: #6e8efb;
+      color: white;
+      padding: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: auto;
+      padding: 14px;
+    }
+
+    .post-box {
+      background: white;
+      padding: 12px;
+      border-radius: 10px;
+      margin-bottom: 15px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 70px;
+      resizing: none;
+      padding: 10px;
+      font-size: 14px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      margin-top: 8px;
+      padding: 8px 14px;
+      border: none;
+      background: #6e8efb;
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .post {
+      background: white;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 14px;
+    }
+
+    .reactions {
+      display: flex;
+      gap: 14px;
+      margin-top: 8px;
+    }
+
+    .reaction-btn {
+      background: #eee;
+      color: black;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .comments {
+      background: #f5f6fa;
+      padding: 8px;
+      border-radius: 8px;
+      margin-top: 8px;
+    }
+
+    .comment {
+      font-size: 13px;
+      margin-top: 5px;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 4px;
+    }
+
+    .comment-box {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .comment-box input {
+      flex: 1;
+      padding: 6px;
+      font-size: 13px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+
+    .logout {
+      background: red;
+      font-size: 12px;
+    }
+  </style>
 </head>
 
 <body>
 
-<h1>Welcome to Your Social Media Feed</h1>
-<p>You are now logged in.</p>
+<header>
+  <strong>LADS Feed</strong>
+  <button class="logout" onclick="logout()">Log Out</button>
+</header>
 
-<button onclick="logout()">Log Out</button>
+<div class="container">
+
+  <!-- New Post -->
+  <div class="post-box">
+    <textarea id="newPost" placeholder="What's on your mind?"></textarea>
+    <button onclick="createPost()">Post</button>
+  </div>
+
+  <!-- Feed -->
+  <div id="feed"></div>
+
+</div>
 
 <script>
   const firebaseConfig = {
@@ -27,17 +150,126 @@
 
   firebase.initializeApp(firebaseConfig);
   const auth = firebase.auth();
+  const db = firebase.firestore();
 
+  // 🔒 Protect page
   auth.onAuthStateChanged(user => {
-    if (!user) {
-      window.location.href = "login.html";
-    }
+    if (!user) window.location.href = "login.html";
+    else loadFeed();
   });
 
-  function logout() {
-    auth.signOut().then(() => {
-      window.location.href = "login.html";
+  // ✅ Create a post
+  function createPost() {
+    const text = document.getElementById("newPost").value.trim();
+    if (!text) return;
+
+    db.collection("posts").add({
+      text,
+      likes: 0,
+      dislikes: 0,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
+
+    document.getElementById("newPost").value = "";
+  }
+
+  // ✅ Load feed
+  function loadFeed() {
+    db.collection("posts")
+      .orderBy("createdAt", "desc")
+      .onSnapshot(snapshot => {
+        document.getElementById("feed").innerHTML = "";
+
+        snapshot.forEach(doc => {
+          const post = doc.data();
+          const id = doc.id;
+
+          document.getElementById("feed").innerHTML += `
+            <div class="post">
+              <div>${post.text}</div>
+
+              <div class="reactions">
+                <div class="reaction-btn" onclick="react('${id}', 'like')">
+                  👍 ${post.likes}
+                </div>
+                <div class="reaction-btn" onclick="react('${id}', 'dislike')">
+                  👎 ${post.dislikes}
+                </div>
+              </div>
+
+              <div class="comments">
+                <div><strong>Comments</strong></div>
+                <div id="comments-${id}"></div>
+
+                <div class="comment-box">
+                  <input id="comment-${id}" placeholder="Write a comment..." />
+                  <button onclick="addComment('${id}')">Send</button>
+                </div>
+              </div>
+            </div>
+          `;
+
+          loadComments(id);
+        });
+      });
+  }
+
+  // ✅ Like / Dislike
+  function react(id, type) {
+    const ref = db.collection("posts").doc(id);
+
+    db.runTransaction(transaction => {
+      return transaction.get(ref).then(doc => {
+        if (!doc.exists) return;
+
+        const data = doc.data();
+        if (type === "like") data.likes++;
+        if (type === "dislike") data.dislikes++;
+
+        transaction.update(ref, data);
+      });
+    });
+  }
+
+  // ✅ Add comment
+  function addComment(postId) {
+    const input = document.getElementById(`comment-${postId}`);
+    const text = input.value.trim();
+    if (!text) return;
+
+    db.collection("posts")
+      .doc(postId)
+      .collection("comments")
+      .add({
+        text,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+    input.value = "";
+  }
+
+  // ✅ Load comments
+  function loadComments(postId) {
+    db.collection("posts")
+      .doc(postId)
+      .collection("comments")
+      .orderBy("createdAt")
+      .onSnapshot(snapshot => {
+        const box = document.getElementById(`comments-${postId}`);
+        if (!box) return;
+
+        box.innerHTML = "";
+
+        snapshot.forEach(doc => {
+          const c = doc.data();
+          box.innerHTML += `<div class="comment">${c.text}</div>`;
+        });
+      });
+  }
+
+  // ✅ Logout
+  function logout() {
+    auth.signOut().then(() => window.location.href = "login.html");
   }
 </script>
 
